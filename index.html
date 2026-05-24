@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SHADOH ANDROID — Android Pentest Cheatsheet</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --green: #00ff41;
+    --green-dim: #00c832;
+    --green-glow: rgba(0,255,65,0.18);
+    --green-faint: rgba(0,255,65,0.07);
+    --bg: #0a0a0a;
+    --bg2: #0d0d0d;
+    --bg3: #111;
+    --border: rgba(0,255,65,0.22);
+    --border-bright: rgba(0,255,65,0.55);
+    --text: #b8ffcc;
+    --text-dim: #4a8a5a;
+    --red: #ff3b3b;
+    --amber: #ffb800;
+    --pink: #ff00c8;
+    --cyan: #00eeff;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Orbitron', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* matrix rain canvas */
+  #matrix-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0.04;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    text-align: center;
+    padding: 2rem 0 1.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+
+  .skull {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+    filter: drop-shadow(0 0 12px var(--green));
+  }
+
+  .header h1 {
+    font-family: var(--display);
+    font-size: clamp(1.3rem, 4vw, 2rem);
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green), 0 0 40px rgba(0,255,65,0.4);
+    letter-spacing: 0.1em;
+    margin-bottom: 0.4rem;
+  }
+
+  .header .sub {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .header .badges {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .badge {
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border: 1px solid;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .badge-green { border-color: var(--green); color: var(--green); background: rgba(0,255,65,0.06); }
+  .badge-red   { border-color: var(--red);   color: var(--red);   background: rgba(255,59,59,0.06); }
+  .badge-amber { border-color: var(--amber); color: var(--amber); background: rgba(255,184,0,0.06); }
+  .badge-cyan  { border-color: var(--cyan);  color: var(--cyan);  background: rgba(0,238,255,0.06); }
+  .badge-pink  { border-color: var(--pink);  color: var(--pink);  background: rgba(255,0,200,0.06); }
+
+  /* ── CONTROLS ── */
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .search-wrap {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+  }
+
+  .search-wrap::before {
+    content: '>';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--green);
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 10px 12px 10px 28px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    caret-color: var(--green);
+  }
+
+  input[type="text"]::placeholder { color: var(--text-dim); opacity: 0.6; }
+
+  input[type="text"]:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+
+  /* ── TABS ── */
+  .tab-row {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .tab {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 9px 6px;
+    background: var(--bg3);
+    color: var(--text-dim);
+    border: none;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .tab:last-child { border-right: none; }
+
+  .tab:hover {
+    background: var(--green-faint);
+    color: var(--green);
+  }
+
+  .tab.active {
+    background: rgba(0,255,65,0.12);
+    color: var(--green);
+    box-shadow: inset 0 -2px 0 var(--green);
+    text-shadow: 0 0 8px var(--green);
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .stats-bar span { color: var(--green); }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-family: var(--display);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green-dim);
+    padding: 6px 10px;
+    background: rgba(0,255,65,0.06);
+    border-left: 3px solid var(--green);
+    margin: 1.5rem 0 0.6rem;
+  }
+
+  /* ── COMMAND CARD ── */
+  .cmd-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+
+  .cmd-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: transparent;
+    transition: background 0.15s;
+  }
+
+  .cmd-card:hover {
+    border-color: var(--border-bright);
+    box-shadow: 0 0 16px var(--green-glow), inset 0 0 20px rgba(0,255,65,0.03);
+  }
+
+  .cmd-card:hover::before { background: var(--green); }
+
+  .cmd-left { flex: 1; min-width: 0; }
+
+  .cmd-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .cat-pill {
+    font-size: 0.6rem;
+    padding: 2px 7px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid;
+  }
+
+  .cat-adb   { border-color: var(--cyan);  color: var(--cyan);  background: rgba(0,238,255,0.07); }
+  .cat-frida { border-color: var(--amber); color: var(--amber); background: rgba(255,184,0,0.07); }
+  .cat-obj   { border-color: #bf00ff;      color: #bf00ff;      background: rgba(191,0,255,0.07); }
+  .cat-apt   { border-color: #ff6600;      color: #ff6600;      background: rgba(255,102,0,0.07); }
+  .cat-net   { border-color: var(--pink);  color: var(--pink);  background: rgba(255,0,200,0.07); }
+  .cat-apk   { border-color: var(--green); color: var(--green); background: rgba(0,255,65,0.07); }
+  .cat-upd   { border-color: #00ffcc;      color: #00ffcc;      background: rgba(0,255,204,0.07); }
+  .cat-inst  { border-color: #aaff00;      color: #aaff00;      background: rgba(170,255,0,0.07); }
+
+  .cmd-code {
+    font-family: var(--mono);
+    font-size: 0.83rem;
+    color: var(--green);
+    word-break: break-all;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  .cmd-note {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 5px;
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+  }
+
+  .cmd-note::before { content: '# '; color: var(--text-dim); opacity: 0.5; }
+
+  /* ── COPY BUTTON ── */
+  .copy-btn {
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .copy-btn:hover {
+    border-color: var(--green);
+    color: var(--green);
+    box-shadow: 0 0 10px var(--green-glow);
+  }
+
+  .copy-btn.copied {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(0,255,65,0.12);
+    text-shadow: 0 0 8px var(--green);
+  }
+
+  /* ── COPY ALL ── */
+  .action-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-main {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 9px 18px;
+    background: rgba(0,255,65,0.1);
+    border: 1px solid var(--green);
+    color: var(--green);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: all 0.15s;
+    text-shadow: 0 0 8px var(--green);
+  }
+
+  .btn-main:hover {
+    background: rgba(0,255,65,0.2);
+    box-shadow: 0 0 20px var(--green-glow);
+  }
+
+  .btn-ghost {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 9px 18px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: all 0.15s;
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--red);
+    color: var(--red);
+    box-shadow: 0 0 12px rgba(255,59,59,0.2);
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    border: 1px dashed var(--border);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    line-height: 1.8;
+  }
+
+  .footer a { color: var(--green); text-decoration: none; }
+  .footer .warn { color: var(--red); margin-top: 0.5rem; }
+
+  .author-line {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-top: 0.6rem;
+    letter-spacing: 0.08em;
+  }
+  .author-line a { color: var(--green); text-decoration: none; font-family: var(--mono); }
+  .author-line a:hover { text-shadow: 0 0 8px var(--green); }
+
+  /* blinking cursor */
+  .blink {
+    display: inline-block;
+    animation: blink 1s step-end infinite;
+    color: var(--green);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* notification toast */
+  #toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: rgba(0,255,65,0.12);
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    padding: 10px 18px;
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s;
+    pointer-events: none;
+    text-shadow: 0 0 8px var(--green);
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 600px) {
+    .tab { font-size: 0.62rem; padding: 8px 4px; }
+    .cmd-code { font-size: 0.76rem; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-bg"></canvas>
+
+<div id="toast">[ COPIED TO CLIPBOARD ]</div>
+
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <span class="skull">☠</span>
+    <h1>SHADOHDROID</h1>
+    <div class="sub">Android Penetration Testing Cheatsheet</div>
+    <div class="author-line">
+      Built by <a href="https://olajide.name.ng" target="_blank" rel="noopener">Olajide James</a>
+      <span style="color:var(--text-dim)"> // </span>
+      <a href="https://olajide.name.ng" target="_blank" rel="noopener">olajide.name.ng</a>
+    </div>
+    <div class="badges">
+      <span class="badge badge-cyan">ADB</span>
+      <span class="badge badge-amber">Frida</span>
+      <span class="badge" style="border-color:#bf00ff;color:#bf00ff;background:rgba(191,0,255,0.06)">objection</span>
+      <span class="badge" style="border-color:#ff6600;color:#ff6600;background:rgba(255,102,0,0.06)">apktool</span>
+      <span class="badge badge-pink">Network</span>
+      <span class="badge badge-green">APK Analysis</span>
+      <span class="badge" style="border-color:#00ffcc;color:#00ffcc;background:rgba(0,255,204,0.06)">Updates</span>
+      <span class="badge" style="border-color:#aaff00;color:#aaff00;background:rgba(170,255,0,0.06)">Install</span>
+      <span class="badge badge-red">Root Required</span>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="search-wrap">
+      <input type="text" id="search" placeholder="search commands, tools, descriptions..." oninput="render()" autocomplete="off" spellcheck="false"/>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-row" id="tabs"></div>
+
+  <!-- ACTION ROW -->
+  <div class="action-row">
+    <button class="btn-main" onclick="copyAll()">[ COPY ALL VISIBLE ]</button>
+    <button class="btn-ghost" onclick="clearSearch()">[ CLEAR ]</button>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-bar" id="stats-bar">
+    <span>COMMANDS: <span id="stat-count">0</span></span>
+    <span>CATEGORY: <span id="stat-cat">ALL</span></span>
+    <span>STATUS: <span>READY</span></span>
+  </div>
+
+  <!-- OUTPUT -->
+  <div id="output"></div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>🔒 SHADOH ANDROID — Android Penetration Testing Cheatsheet</div>
+    <div style="margin-top:0.4rem">
+      Built with ❤️ by <a href="https://olajide.name.ng" target="_blank" rel="noopener">Olajide James</a>
+      &nbsp;|&nbsp; <a href="https://olajide.name.ng" target="_blank" rel="noopener">olajide.name.ng</a>
+    </div>
+    <div class="warn">⚠ Use responsibly. Always get explicit permission before testing. Unauthorized access is illegal.</div>
+  </div>
+
+</div>
+
+<script>
+// ── MATRIX RAIN ──
+(function(){
+  const c = document.getElementById('matrix-bg');
+  const ctx = c.getContext('2d');
+  function resize(){ c.width = window.innerWidth; c.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ01';
+  const cols = () => Math.floor(c.width / 16);
+  let drops = [];
+  function reset(){ drops = Array.from({length: cols()}, () => Math.random() * -c.height / 16); }
+  reset();
+  window.addEventListener('resize', reset);
+  setInterval(()=>{
+    ctx.fillStyle = 'rgba(10,10,10,0.05)';
+    ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle = '#00ff41';
+    ctx.font = '14px monospace';
+    drops.forEach((y,i)=>{
+      ctx.fillText(chars[Math.floor(Math.random()*chars.length)], i*16, y*16);
+      if(y*16 > c.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i] += 0.5;
+    });
+  }, 55);
+})();
+
+// ── DATA ──
+const CATS = ["All","ADB","Frida","objection","apktool","Network","APK Analysis","Updates","Install"];
+const CAT_CLASS = { ADB:"cat-adb", Frida:"cat-frida", objection:"cat-obj", apktool:"cat-apt", Network:"cat-net", "APK Analysis":"cat-apk", Updates:"cat-upd", Install:"cat-inst" };
+
+const DATA = [
+  // ADB — Device
+  { cat:"ADB", group:"Device & Connection", label:"List connected devices", cmd:"adb devices", note:"Shows all attached devices and emulators" },
+  { cat:"ADB", group:"Device & Connection", label:"Connect over TCP/IP (wireless)", cmd:"adb tcpip 5555 && adb connect <device_ip>:5555", note:"Run tcpip while USB connected first" },
+  { cat:"ADB", group:"Device & Connection", label:"Restart ADB server", cmd:"adb kill-server && adb start-server", note:"Fixes most connection issues" },
+  { cat:"ADB", group:"Device & Connection", label:"Interactive shell", cmd:"adb shell", note:"Opens a shell on the device" },
+  { cat:"ADB", group:"Device & Connection", label:"Single shell command", cmd:"adb shell <command>", note:"e.g. adb shell id" },
+  { cat:"ADB", group:"Device & Connection", label:"Root shell", cmd:"adb shell su", note:"Escalate to root inside shell" },
+  // ADB — Apps
+  { cat:"ADB", group:"App Management", label:"List all packages", cmd:"adb shell pm list packages", note:"" },
+  { cat:"ADB", group:"App Management", label:"List third-party packages only", cmd:"adb shell pm list packages -3", note:"Good starting point for target discovery" },
+  { cat:"ADB", group:"App Management", label:"Find APK path on device", cmd:"adb shell pm path <package.name>", note:"Reveals APK location" },
+  { cat:"ADB", group:"App Management", label:"Pull APK from device", cmd:`adb pull $(adb shell pm path <pkg> | cut -d: -f2 | tr -d '\\r') ./target.apk`, note:"Extracts installed APK" },
+  { cat:"ADB", group:"App Management", label:"Install APK", cmd:"adb install -r target.apk", note:"-r replaces existing install" },
+  { cat:"ADB", group:"App Management", label:"Uninstall app", cmd:"adb uninstall <package.name>", note:"" },
+  { cat:"ADB", group:"App Management", label:"Clear app data", cmd:"adb shell pm clear <package.name>", note:"Resets app to fresh install state" },
+  { cat:"ADB", group:"App Management", label:"Force stop app", cmd:"adb shell am force-stop <package.name>", note:"" },
+  { cat:"ADB", group:"App Management", label:"Start activity (test exported)", cmd:"adb shell am start -n <package>/<activity>", note:"Tests exported Activity access" },
+  { cat:"ADB", group:"App Management", label:"Send broadcast intent", cmd:"adb shell am broadcast -a <action>", note:"Tests exported BroadcastReceiver" },
+  { cat:"ADB", group:"App Management", label:"Start a service", cmd:"adb shell am startservice -n <pkg>/<service>", note:"Tests exported Service" },
+  // ADB — Files
+  { cat:"ADB", group:"File System", label:"Push file to device", cmd:"adb push local_file /sdcard/remote_file", note:"" },
+  { cat:"ADB", group:"File System", label:"Pull file from device", cmd:"adb pull /sdcard/file ./local_file", note:"" },
+  { cat:"ADB", group:"File System", label:"List app shared_prefs", cmd:"adb shell run-as <pkg> ls /data/data/<pkg>/shared_prefs/", note:"Requires run-as or root" },
+  { cat:"ADB", group:"File System", label:"Read shared preferences XML", cmd:"adb shell run-as <pkg> cat /data/data/<pkg>/shared_prefs/<file>.xml", note:"Check for hardcoded secrets" },
+  { cat:"ADB", group:"File System", label:"Dump SQLite database", cmd:`adb shell "run-as <pkg> sqlite3 /data/data/<pkg>/databases/<db>.db .dump"`, note:"Dumps all tables to stdout" },
+  { cat:"ADB", group:"File System", label:"List app data dir", cmd:"adb shell run-as <pkg> ls -la /data/data/<pkg>/", note:"" },
+  // ADB — Logs
+  { cat:"ADB", group:"Logging & Debug", label:"Full logcat output", cmd:"adb logcat", note:"Real-time device logs" },
+  { cat:"ADB", group:"Logging & Debug", label:"Filter logcat by tag", cmd:"adb logcat -s <TAG>:V", note:"V=verbose, D/I/W/E also valid" },
+  { cat:"ADB", group:"Logging & Debug", label:"Logcat for one process", cmd:"adb logcat --pid=$(adb shell pidof -s <pkg>)", note:"Filter logs to target app only" },
+  { cat:"ADB", group:"Logging & Debug", label:"Capture traffic with tcpdump", cmd:"adb shell tcpdump -i any -w /sdcard/capture.pcap", note:"Pull and open in Wireshark" },
+  { cat:"ADB", group:"Logging & Debug", label:"Screenshot", cmd:"adb exec-out screencap -p > screen.png", note:"" },
+  { cat:"ADB", group:"Logging & Debug", label:"Screen record", cmd:"adb shell screenrecord /sdcard/record.mp4", note:"Ctrl+C to stop, then pull" },
+  { cat:"ADB", group:"Logging & Debug", label:"Get device info", cmd:"adb shell getprop", note:"Dump all system properties" },
+  { cat:"ADB", group:"Logging & Debug", label:"Check Android version", cmd:"adb shell getprop ro.build.version.release", note:"" },
+
+  // FRIDA
+  { cat:"Frida", group:"Setup & Server", label:"Check Frida version", cmd:"frida --version", note:"" },
+  { cat:"Frida", group:"Setup & Server", label:"Push frida-server to device", cmd:"adb push frida-server /data/local/tmp/ && adb shell chmod +x /data/local/tmp/frida-server", note:"Match version to host frida version" },
+  { cat:"Frida", group:"Setup & Server", label:"Start frida-server (root)", cmd:"adb shell su -c '/data/local/tmp/frida-server &'", note:"Must have root access" },
+  { cat:"Frida", group:"Setup & Server", label:"List running processes", cmd:"frida-ps -U", note:"-U = USB device; -R = remote/TCP" },
+  { cat:"Frida", group:"Setup & Server", label:"List installed apps", cmd:"frida-ps -Uai", note:"-a apps only, -i include icons" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Attach to running app", cmd:"frida -U -n '<app name>' -l script.js", note:"App must already be running" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Spawn app with script", cmd:"frida -U -f <package.name> -l script.js --no-pause", note:"Spawns fresh instance with hooks" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Interactive REPL", cmd:"frida -U -n '<app name>'", note:"Live JS console for exploration" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Hook a Java method", cmd:`Java.perform(function() {
+  var cls = Java.use('com.target.ClassName');
+  cls.methodName.implementation = function(arg) {
+    console.log('[*] arg: ' + arg);
+    return this.methodName(arg);
+  };
+});`, note:"Save to .js file and load with -l flag" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Enumerate all loaded classes", cmd:`Java.perform(function() {
+  Java.enumerateLoadedClasses({
+    onMatch: function(name) { console.log(name); },
+    onComplete: function() {}
+  });
+});`, note:"Dump all classes at runtime" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Dump methods of a class", cmd:`Java.perform(function() {
+  var cls = Java.use('com.target.Class');
+  console.log(JSON.stringify(Object.getOwnPropertyNames(cls.__proto__)));
+});`, note:"" },
+  { cat:"Frida", group:"Hooking & Injection", label:"Bypass root detection (generic)", cmd:"frida -U -f <pkg> -l https://codeshare.frida.re/@dzonerzy/fridantiroot/script.js --no-pause", note:"Via Frida CodeShare" },
+  { cat:"Frida", group:"objection", label:"Launch objection", cmd:"objection -g <package.name> explore", note:"All-in-one runtime exploration" },
+  { cat:"Frida", group:"objection", label:"Disable SSL pinning", cmd:"android sslpinning disable", note:"Run inside objection shell" },
+  { cat:"Frida", group:"objection", label:"List all activities", cmd:"android hooking list activities", note:"Inside objection shell" },
+  { cat:"Frida", group:"objection", label:"List all services", cmd:"android hooking list services", note:"Inside objection shell" },
+  { cat:"Frida", group:"objection", label:"Search heap for string", cmd:"memory search --string 'password'", note:"Inside objection shell" },
+  { cat:"Frida", group:"objection", label:"Print env and file paths", cmd:"env", note:"Prints data dir, cache, etc." },
+  { cat:"Frida", group:"objection", label:"Watch class method calls", cmd:"android hooking watch class com.target.ClassName", note:"Logs every method call on class" },
+
+  // NETWORK
+  { cat:"Network", group:"Burp Suite Setup", label:"Export Burp CA certificate", cmd:"# Burp → Proxy → Options → Import/Export → Export CA (DER)\nmv cacert.der burp.cer", note:"Required for HTTPS interception" },
+  { cat:"Network", group:"Burp Suite Setup", label:"Push Burp cert to device", cmd:"adb push burp.cer /sdcard/burp.cer", note:"" },
+  { cat:"Network", group:"Burp Suite Setup", label:"Install cert (Android < 7)", cmd:"# Settings → Security → Install from storage → select burp.cer", note:"User CA; works pre-Android N" },
+  { cat:"Network", group:"Burp Suite Setup", label:"Install cert as system CA (root)", cmd:`openssl x509 -inform DER -in burp.cer -out burp.pem
+HASH=$(openssl x509 -inform PEM -subject_hash_old -in burp.pem | head -1)
+cp burp.pem $HASH.0
+adb push $HASH.0 /system/etc/security/cacerts/
+adb shell chmod 644 /system/etc/security/cacerts/$HASH.0`, note:"Root required; bypasses Android N+ restrictions" },
+  { cat:"Network", group:"Burp Suite Setup", label:"Set device proxy", cmd:"adb shell settings put global http_proxy <burp_ip>:8080", note:"" },
+  { cat:"Network", group:"Burp Suite Setup", label:"Remove device proxy", cmd:"adb shell settings put global http_proxy :0", note:"Always clean up after testing" },
+  { cat:"Network", group:"SSL Pinning Bypass", label:"Bypass via objection", cmd:"objection -g <pkg> explore -- --startup-command 'android sslpinning disable'", note:"One-liner spawn + disable pinning" },
+  { cat:"Network", group:"SSL Pinning Bypass", label:"Universal bypass (Frida CodeShare)", cmd:"frida -U -f <pkg> --codeshare pcipolloni/universal-android-ssl-pinning-bypass-with-frida --no-pause", note:"Works against OkHttp, TrustManager, etc." },
+  { cat:"Network", group:"SSL Pinning Bypass", label:"Patch network_security_config.xml", cmd:`<!-- In AndroidManifest.xml add: -->
+<!-- android:networkSecurityConfig="@xml/network_security_config" -->
+
+<!-- In res/xml/network_security_config.xml: -->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="true">
+    <trust-anchors>
+      <certificates src="user"/>
+      <certificates src="system"/>
+    </trust-anchors>
+  </base-config>
+</network-security-config>`, note:"Repack APK with apktool after editing" },
+  { cat:"Network", group:"Traffic Analysis", label:"Capture with tcpdump", cmd:"adb shell tcpdump -i any -s 0 -w /sdcard/cap.pcap && adb pull /sdcard/cap.pcap", note:"" },
+  { cat:"Network", group:"Traffic Analysis", label:"Open capture in Wireshark", cmd:"wireshark cap.pcap", note:"" },
+  { cat:"Network", group:"Traffic Analysis", label:"mitmproxy transparent mode", cmd:"mitmproxy --mode transparent --showhost", note:"Pair with iptables redirect rules on device" },
+
+  // APK
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Decode APK with apktool", cmd:"apktool d target.apk -o ./decoded/", note:"Extracts Smali, resources, manifest" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Rebuild patched APK", cmd:"apktool b ./decoded/ -o patched.apk", note:"After making edits" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Generate signing keystore", cmd:"keytool -genkey -v -keystore my.keystore -alias myalias -keyalg RSA -keysize 2048 -validity 10000", note:"One-time setup" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Sign patched APK", cmd:"jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore my.keystore patched.apk myalias", note:"Required to install on device" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Zipalign APK", cmd:"zipalign -v 4 patched.apk patched-aligned.apk", note:"Required for Android 5+" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Decompile to Java with jadx", cmd:"jadx -d ./output/ target.apk", note:"Outputs readable Java source" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"jadx GUI", cmd:"jadx-gui target.apk", note:"Visual decompiler with class browser" },
+  { cat:"APK Analysis", group:"Decoding & Decompiling", label:"Extract classes.dex", cmd:"unzip target.apk classes.dex -d ./", note:"" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Check manifest permissions", cmd:`apktool d target.apk -o decoded
+grep -E 'permission|exported' decoded/AndroidManifest.xml`, note:"Look for dangerous perms and exported components" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Find exported components", cmd:`grep -i 'android:exported="true"' decoded/AndroidManifest.xml`, note:"Potential unauthorized access vectors" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Grep for hardcoded secrets", cmd:`grep -rEi 'password|api.?key|secret|token|bearer|auth' ./decoded/`, note:"Check Smali and res/ folders" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Find URLs and endpoints", cmd:`grep -rEo 'https?://[^"'"'"']+' ./decoded/ | sort -u`, note:"Discover backend API endpoints" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Grep Smali for weak crypto", cmd:`grep -ri 'AES\|DES\|RSA\|MD5\|SHA1' ./decoded/smali/`, note:"Check for insecure crypto implementations" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Find WebView JS enabled", cmd:`grep -r 'setJavaScriptEnabled' ./decoded/`, note:"Potential XSS / RCE vector" },
+  { cat:"APK Analysis", group:"Static Analysis", label:"Search for IP addresses", cmd:`grep -rEo '([0-9]{1,3}\\.){3}[0-9]{1,3}' ./decoded/ | sort -u`, note:"" },
+  { cat:"APK Analysis", group:"MobSF", label:"Run MobSF via Docker", cmd:"docker run -it --rm -p 8000:8000 opensecurity/mobile-security-framework-mobsf:latest", note:"Open http://localhost:8000" },
+  { cat:"APK Analysis", group:"MobSF", label:"Upload APK via MobSF API", cmd:`curl -F 'file=@target.apk' http://localhost:8000/api/v1/upload \
+  -H 'Authorization: <your_api_key>'`, note:"Returns file hash for scan" },
+  { cat:"APK Analysis", group:"MobSF", label:"Trigger static scan", cmd:`curl -X POST http://localhost:8000/api/v1/scan \
+  -d 'scan_type=apk&file_name=target.apk&hash=<hash>' \
+  -H 'Authorization: <api_key>'`, note:"" },
+  { cat:"APK Analysis", group:"MobSF", label:"Get JSON report", cmd:`curl http://localhost:8000/api/v1/report_json \
+  -d 'hash=<hash>' -H 'Authorization: <api_key>'`, note:"" },
+  { cat:"APK Analysis", group:"MobSF", label:"Download PDF report", cmd:`curl -o report.pdf http://localhost:8000/api/v1/download_pdf \
+  -d 'hash=<hash>' -H 'Authorization: <api_key>'`, note:"" },
+
+  // ── OBJECTION ──
+  { cat:"objection", group:"Setup & Launch", label:"Install objection", cmd:"pip3 install objection", note:"Requires Python 3 and frida-tools" },
+  { cat:"objection", group:"Setup & Launch", label:"Update objection", cmd:"pip3 install objection --upgrade", note:"" },
+  { cat:"objection", group:"Setup & Launch", label:"Launch and explore app", cmd:"objection -g <package.name> explore", note:"Attaches to running app" },
+  { cat:"objection", group:"Setup & Launch", label:"Spawn app and attach", cmd:"objection -g <package.name> explore --startup-command 'android sslpinning disable'", note:"Spawns fresh + immediately disables pinning" },
+  { cat:"objection", group:"Setup & Launch", label:"Connect via network (non-USB)", cmd:"objection -N -h <device_ip> -p 27042 -g <package.name> explore", note:"frida-server must be running on device" },
+  { cat:"objection", group:"SSL & Pinning", label:"Disable SSL pinning", cmd:"android sslpinning disable", note:"Run inside objection shell — covers OkHttp, TrustManager, Appcelerator, PhoneGap" },
+  { cat:"objection", group:"SSL & Pinning", label:"Disable SSL pinning (verbose)", cmd:"android sslpinning disable --quiet false", note:"Shows every method it patches" },
+  { cat:"objection", group:"Hooking & Tracing", label:"List all activities", cmd:"android hooking list activities", note:"" },
+  { cat:"objection", group:"Hooking & Tracing", label:"List all services", cmd:"android hooking list services", note:"" },
+  { cat:"objection", group:"Hooking & Tracing", label:"List all receivers", cmd:"android hooking list receivers", note:"" },
+  { cat:"objection", group:"Hooking & Tracing", label:"Watch all methods on a class", cmd:"android hooking watch class com.target.ClassName", note:"Logs every method call with args" },
+  { cat:"objection", group:"Hooking & Tracing", label:"Watch a specific method", cmd:"android hooking watch class_method com.target.Class.methodName --dump-args --dump-return", note:"Dumps args and return value" },
+  { cat:"objection", group:"Hooking & Tracing", label:"Search for classes by keyword", cmd:"android hooking search classes keyword", note:"e.g. android hooking search classes crypto" },
+  { cat:"objection", group:"Hooking & Tracing", label:"Search for methods by keyword", cmd:"android hooking search methods keyword", note:"" },
+  { cat:"objection", group:"Memory & Storage", label:"Print environment paths", cmd:"env", note:"Shows data dir, cache dir, external storage paths" },
+  { cat:"objection", group:"Memory & Storage", label:"List files in data dir", cmd:"file ls /data/data/<package.name>/", note:"" },
+  { cat:"objection", group:"Memory & Storage", label:"Read a file", cmd:"file cat /data/data/<pkg>/shared_prefs/prefs.xml", note:"" },
+  { cat:"objection", group:"Memory & Storage", label:"Download file to host", cmd:"file download /data/data/<pkg>/databases/app.db ./app.db", note:"" },
+  { cat:"objection", group:"Memory & Storage", label:"Search heap for string", cmd:"memory search --string 'password'", note:"Scans heap for sensitive values" },
+  { cat:"objection", group:"Memory & Storage", label:"Dump memory to file", cmd:"memory dump all ./memdump.bin", note:"Full heap dump" },
+  { cat:"objection", group:"Memory & Storage", label:"List loaded modules", cmd:"memory list modules", note:"" },
+  { cat:"objection", group:"Root & Emulator", label:"Bypass root detection", cmd:"android root disable", note:"Patches common root detection methods" },
+  { cat:"objection", group:"Root & Emulator", label:"Simulate rooted device", cmd:"android root simulate", note:"Makes app think device is rooted" },
+  { cat:"objection", group:"Root & Emulator", label:"Disable debugger detection", cmd:"android deobfuscate enable", note:"" },
+  { cat:"objection", group:"Intent & Clipboard", label:"Start an activity", cmd:"android intent launch_activity com.target.pkg.ActivityName", note:"" },
+  { cat:"objection", group:"Intent & Clipboard", label:"Get clipboard content", cmd:"android clipboard monitor", note:"Monitors clipboard changes in real time" },
+
+  // custom — APK patching workflow
+  { cat:"objection", group:"APK Patching", label:"Sign a split APK with objection", cmd:"objection signapk split_config.en.apk", note:"Signs a split config APK before patching" },
+  { cat:"objection", group:"APK Patching", label:"Patch base APK (aapt2 mode)", cmd:"objection patchapk -s base.apk --use-aapt2", note:"Use --use-aapt2 when standard patch fails on newer APKs" },
+  { cat:"objection", group:"APK Patching", label:"Install multiple split APKs via ADB", cmd:"adb install-multiple base.objection.apk split_config.en.objection.apk split_config.x86.objection.apk split_config.xxhdpi.objection.apk", note:"Install all patched splits together — order matters, base first" },
+
+  // ── APKTOOL ──
+  { cat:"apktool", group:"Installation & Update", label:"Install apktool (Linux/Mac)", cmd:"# Download latest jar from: https://github.com/iBotPeaches/Apktool/releases\nwget https://github.com/iBotPeaches/Apktool/releases/latest/download/apktool.jar\nmv apktool.jar /usr/local/bin/apktool.jar", note:"Then add wrapper script (see update section)" },
+  { cat:"apktool", group:"Installation & Update", label:"Install wrapper script (Linux)", cmd:`wget https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -O /usr/local/bin/apktool
+chmod +x /usr/local/bin/apktool`, note:"Makes apktool callable globally" },
+  { cat:"apktool", group:"Installation & Update", label:"Update apktool (pip wrapper)", cmd:"pip3 install --upgrade apktool", note:"If installed via pip" },
+  { cat:"apktool", group:"Installation & Update", label:"Check apktool version", cmd:"apktool --version", note:"" },
+  { cat:"apktool", group:"Decoding", label:"Decode APK (full)", cmd:"apktool d target.apk -o ./decoded/", note:"Extracts Smali, res/, AndroidManifest.xml, assets/" },
+  { cat:"apktool", group:"Decoding", label:"Decode without sources (res only)", cmd:"apktool d target.apk -o ./decoded/ --no-src", note:"Faster — skips Smali decompilation" },
+  { cat:"apktool", group:"Decoding", label:"Decode without resources", cmd:"apktool d target.apk -o ./decoded/ --no-res", note:"Only decompiles Smali code" },
+  { cat:"apktool", group:"Decoding", label:"Force decode (overwrite existing)", cmd:"apktool d target.apk -o ./decoded/ -f", note:"Overwrites output dir if it exists" },
+  { cat:"apktool", group:"Decoding", label:"Decode keeping original manifest", cmd:"apktool d target.apk -o ./decoded/ --keep-broken-res", note:"Useful when apktool errors on resources" },
+  { cat:"apktool", group:"Rebuilding", label:"Rebuild APK from decoded dir", cmd:"apktool b ./decoded/ -o patched.apk", note:"Recompiles Smali and resources" },
+  { cat:"apktool", group:"Rebuilding", label:"Rebuild without resource compression", cmd:"apktool b ./decoded/ -o patched.apk --use-aapt2", note:"Use if standard build fails" },
+  { cat:"apktool", group:"Rebuilding", label:"Rebuild and keep broken resources", cmd:"apktool b ./decoded/ -o patched.apk --keep-broken-res", note:"" },
+  { cat:"apktool", group:"Signing (after rebuild)", label:"Generate debug keystore", cmd:"keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname 'CN=Android Debug'", note:"One-time setup" },
+  { cat:"apktool", group:"Signing (after rebuild)", label:"Sign APK with jarsigner", cmd:"jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore debug.keystore -storepass android patched.apk androiddebugkey", note:"" },
+  { cat:"apktool", group:"Signing (after rebuild)", label:"Verify APK signature", cmd:"jarsigner -verify -verbose patched.apk", note:"Confirms signature is valid" },
+  { cat:"apktool", group:"Signing (after rebuild)", label:"Zipalign final APK", cmd:"zipalign -v 4 patched.apk final.apk", note:"Required for Android 5+ installation" },
+  { cat:"apktool", group:"Signing (after rebuild)", label:"Sign with apksigner (modern)", cmd:"apksigner sign --ks debug.keystore --ks-pass pass:android --out final-signed.apk patched.apk", note:"Preferred over jarsigner for API 24+" },
+  { cat:"apktool", group:"Common Edits", label:"Patch AndroidManifest — allow backup", cmd:`# In decoded/AndroidManifest.xml change:
+android:allowBackup="false"  →  android:allowBackup="true"`, note:"Enables adb backup extraction" },
+  { cat:"apktool", group:"Common Edits", label:"Add network security config", cmd:`# In decoded/AndroidManifest.xml add to <application>:
+android:networkSecurityConfig="@xml/network_security_config"
+# Create decoded/res/xml/network_security_config.xml with trust-anchors`, note:"Allows user CA certs for HTTPS interception" },
+  { cat:"apktool", group:"Common Edits", label:"Enable debuggable flag", cmd:`# In AndroidManifest.xml inside <application>:
+android:debuggable="true"`, note:"Allows debugging with jdwp / debugger attach" },
+  { cat:"apktool", group:"Common Edits", label:"Remove exported=false", cmd:`# Change in AndroidManifest.xml:
+android:exported="false"  →  android:exported="true"`, note:"Enables launching internal activities via ADB" },
+
+  // ── UPDATES ──
+  { cat:"Updates", group:"Frida & objection", label:"Check Frida version", cmd:"frida --version", note:"" },
+  { cat:"Updates", group:"Frida & objection", label:"Update Frida", cmd:"pip3 install frida-tools --upgrade", note:"Updates frida-tools, frida-ps, frida CLI" },
+  { cat:"Updates", group:"Frida & objection", label:"Update frida Python bindings", cmd:"pip3 install frida --upgrade", note:"Core frida module" },
+  { cat:"Updates", group:"Frida & objection", label:"Update objection", cmd:"pip3 install objection --upgrade", note:"" },
+  { cat:"Updates", group:"Frida & objection", label:"Download matching frida-server", cmd:`# After updating, download server matching new version:
+FRIDA_VER=$(frida --version)
+wget https://github.com/frida/frida/releases/download/$FRIDA_VER/frida-server-$FRIDA_VER-android-arm64.xz
+xz -d frida-server-*.xz && mv frida-server-* frida-server`, note:"Must match host frida version exactly" },
+  { cat:"Updates", group:"Frida & objection", label:"Push updated frida-server to device", cmd:"adb push frida-server /data/local/tmp/ && adb shell chmod +x /data/local/tmp/frida-server", note:"" },
+  { cat:"Updates", group:"ADB & Platform Tools", label:"Check ADB version", cmd:"adb version", note:"" },
+  { cat:"Updates", group:"ADB & Platform Tools", label:"Update platform-tools (Linux)", cmd:"sudo apt update && sudo apt install android-tools-adb android-tools-fastboot", note:"" },
+  { cat:"Updates", group:"ADB & Platform Tools", label:"Update platform-tools (Mac)", cmd:"brew upgrade android-platform-tools", note:"" },
+  { cat:"Updates", group:"ADB & Platform Tools", label:"Download latest platform-tools (manual)", cmd:"# https://developer.android.com/tools/releases/platform-tools\n# Download zip, extract, add to PATH", note:"Official Google source" },
+  { cat:"Updates", group:"apktool", label:"Check apktool version", cmd:"apktool --version", note:"" },
+  { cat:"Updates", group:"apktool", label:"Update apktool jar (manual)", cmd:`# Check latest: https://github.com/iBotPeaches/Apktool/releases
+wget https://github.com/iBotPeaches/Apktool/releases/latest/download/apktool.jar -O /usr/local/bin/apktool.jar`, note:"Replaces existing jar in-place" },
+  { cat:"Updates", group:"jadx", label:"Check jadx version", cmd:"jadx --version", note:"" },
+  { cat:"Updates", group:"jadx", label:"Update jadx (manual)", cmd:`# https://github.com/skylot/jadx/releases
+wget https://github.com/skylot/jadx/releases/latest/download/jadx-<version>.zip
+unzip jadx-*.zip -d jadx && sudo cp jadx/bin/jadx /usr/local/bin/`, note:"" },
+  { cat:"Updates", group:"jadx", label:"Update jadx (Mac Homebrew)", cmd:"brew upgrade jadx", note:"" },
+  { cat:"Updates", group:"MobSF", label:"Update MobSF Docker image", cmd:"docker pull opensecurity/mobile-security-framework-mobsf:latest", note:"" },
+  { cat:"Updates", group:"MobSF", label:"Update MobSF (pip)", cmd:"pip3 install mobsf --upgrade", note:"If installed via pip" },
+  { cat:"Updates", group:"MobSF", label:"Check MobSF version inside container", cmd:"docker run --rm opensecurity/mobile-security-framework-mobsf:latest python3 -c \"import mobsf; print(mobsf.__version__)\"", note:"" },
+
+  // ── INSTALLATION ──
+  { cat:"Install", group:"Pre-flight Checks", label:"Check device/emulator architecture", cmd:"adb shell getprop ro.product.cpu.abi", note:"Returns arm64-v8a, armeabi-v7a, x86, x86_64 — needed to pick correct frida-server binary" },
+  { cat:"Install", group:"Pre-flight Checks", label:"Check Android version", cmd:"adb shell getprop ro.build.version.release", note:"" },
+  { cat:"Install", group:"Pre-flight Checks", label:"Check if device is rooted", cmd:"adb shell su -c 'id'", note:"Returns uid=0(root) if rooted" },
+  { cat:"Install", group:"Pre-flight Checks", label:"Check Python version", cmd:"python3 --version", note:"Python 3.8+ required for frida-tools and objection" },
+  { cat:"Install", group:"Pre-flight Checks", label:"Check pip version", cmd:"pip3 --version", note:"" },
+  { cat:"Install", group:"Pre-flight Checks", label:"Check Java version (for apktool/jadx)", cmd:"java -version", note:"Java 11+ recommended" },
+
+  { cat:"Install", group:"ADB / Platform Tools", label:"Install ADB (Linux/Debian)", cmd:"sudo apt update && sudo apt install -y adb", note:"" },
+  { cat:"Install", group:"ADB / Platform Tools", label:"Install ADB (Mac)", cmd:"brew install android-platform-tools", note:"Requires Homebrew" },
+  { cat:"Install", group:"ADB / Platform Tools", label:"Install ADB (Windows)", cmd:"# Download from: https://developer.android.com/tools/releases/platform-tools\n# Extract zip and add to PATH", note:"" },
+  { cat:"Install", group:"ADB / Platform Tools", label:"Verify ADB install", cmd:"adb version", note:"" },
+
+  { cat:"Install", group:"Frida", label:"Install frida-tools (pip)", cmd:"pip3 install frida-tools", note:"Installs frida, frida-ps, frida-ls-devices CLI tools" },
+  { cat:"Install", group:"Frida", label:"Verify frida install", cmd:"frida --version", note:"" },
+  { cat:"Install", group:"Frida", label:"Get device architecture", cmd:"adb shell getprop ro.product.cpu.abi", note:"Use this to pick the right frida-server binary" },
+  { cat:"Install", group:"Frida", label:"Download frida-server for arm64", cmd:"wget https://github.com/frida/frida/releases/download/$(frida --version)/frida-server-$(frida --version)-android-arm64.xz", note:"Most modern phones and emulators" },
+  { cat:"Install", group:"Frida", label:"Download frida-server for x86_64", cmd:"wget https://github.com/frida/frida/releases/download/$(frida --version)/frida-server-$(frida --version)-android-x86_64.xz", note:"Genymotion / AVD emulators" },
+  { cat:"Install", group:"Frida", label:"Download frida-server for x86", cmd:"wget https://github.com/frida/frida/releases/download/$(frida --version)/frida-server-$(frida --version)-android-x86.xz", note:"Older emulators" },
+  { cat:"Install", group:"Frida", label:"Extract frida-server", cmd:"xz -d frida-server-*.xz && mv frida-server-* frida-server", note:"" },
+  { cat:"Install", group:"Frida", label:"Push & chmod frida-server", cmd:"adb push frida-server /data/local/tmp/ && adb shell chmod +x /data/local/tmp/frida-server", note:"" },
+  { cat:"Install", group:"Frida", label:"Start frida-server on device", cmd:"adb shell su -c '/data/local/tmp/frida-server &'", note:"Root required" },
+  { cat:"Install", group:"Frida", label:"Verify frida-server is running", cmd:"frida-ps -U", note:"Should list running device processes" },
+
+  { cat:"Install", group:"objection", label:"Install objection", cmd:"pip3 install objection", note:"Depends on frida-tools — install frida first" },
+  { cat:"Install", group:"objection", label:"Verify objection install", cmd:"objection version", note:"" },
+  { cat:"Install", group:"objection", label:"Install specific version", cmd:"pip3 install objection==1.11.0", note:"Pin version if frida version mismatch" },
+
+  { cat:"Install", group:"apktool", label:"Install Java (required)", cmd:"sudo apt install -y default-jdk", note:"apktool requires Java" },
+  { cat:"Install", group:"apktool", label:"Download apktool jar", cmd:"wget https://github.com/iBotPeaches/Apktool/releases/latest/download/apktool.jar -O /usr/local/bin/apktool.jar", note:"" },
+  { cat:"Install", group:"apktool", label:"Download apktool wrapper script (Linux)", cmd:"wget https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -O /usr/local/bin/apktool && chmod +x /usr/local/bin/apktool", note:"" },
+  { cat:"Install", group:"apktool", label:"Install apktool (Mac)", cmd:"brew install apktool", note:"" },
+  { cat:"Install", group:"apktool", label:"Verify apktool install", cmd:"apktool --version", note:"" },
+
+  { cat:"Install", group:"jadx", label:"Install jadx (Mac)", cmd:"brew install jadx", note:"" },
+  { cat:"Install", group:"jadx", label:"Install jadx (Linux — manual)", cmd:"wget https://github.com/skylot/jadx/releases/latest/download/jadx-1.5.0.zip\nunzip jadx-*.zip -d jadx\nsudo cp jadx/bin/jadx jadx/bin/jadx-gui /usr/local/bin/", note:"Check latest version on GitHub" },
+  { cat:"Install", group:"jadx", label:"Verify jadx install", cmd:"jadx --version", note:"" },
+
+  { cat:"Install", group:"MobSF", label:"Install Docker (required)", cmd:"# https://docs.docker.com/get-docker/\ncurl -fsSL https://get.docker.com | sh", note:"MobSF Docker is the easiest setup" },
+  { cat:"Install", group:"MobSF", label:"Pull MobSF Docker image", cmd:"docker pull opensecurity/mobile-security-framework-mobsf:latest", note:"" },
+  { cat:"Install", group:"MobSF", label:"Run MobSF", cmd:"docker run -it --rm -p 8000:8000 opensecurity/mobile-security-framework-mobsf:latest", note:"Open http://localhost:8000 in browser" },
+  { cat:"Install", group:"MobSF", label:"Install MobSF via pip (alternative)", cmd:"pip3 install mobsf && mobsf", note:"" },
+
+  { cat:"Install", group:"Burp Suite", label:"Download Burp Suite Community", cmd:"# https://portswigger.net/burp/communitydownload\n# Download .sh installer for Linux or .jar for any platform", note:"" },
+  { cat:"Install", group:"Burp Suite", label:"Run Burp Suite jar", cmd:"java -jar burpsuite_community.jar", note:"" },
+  { cat:"Install", group:"Burp Suite", label:"Install Burp Suite (Mac)", cmd:"brew install --cask burp-suite", note:"" },
+
+  { cat:"Install", group:"zipalign & apksigner", label:"Install build tools (Linux)", cmd:"sudo apt install -y zipalign apksigner", note:"" },
+  { cat:"Install", group:"zipalign & apksigner", label:"Install via Android SDK", cmd:"# Android Studio → SDK Manager → SDK Tools → Android SDK Build-Tools", note:"Includes zipalign and apksigner" },
+  { cat:"Install", group:"zipalign & apksigner", label:"Verify zipalign", cmd:"zipalign --version", note:"" },
+  { cat:"Install", group:"zipalign & apksigner", label:"Verify apksigner", cmd:"apksigner version", note:"" },
+
+  { cat:"Install", group:"tcpdump (on device)", label:"Check if tcpdump is on device", cmd:"adb shell which tcpdump", note:"" },
+  { cat:"Install", group:"tcpdump (on device)", label:"Push tcpdump binary to device", cmd:"adb push tcpdump /data/local/tmp/ && adb shell chmod +x /data/local/tmp/tcpdump", note:"Download arm64 binary from https://github.com/the-tcpdump-group/tcpdump" },
+];
+
+let activeTab = "All";
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function copyToClipboard(text, successMsg) {
+  // Try modern clipboard API first (HTTPS / localhost)
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(successMsg);
+    }).catch(() => {
+      fallbackCopy(text, successMsg);
+    });
+  } else {
+    fallbackCopy(text, successMsg);
+  }
+}
+
+function fallbackCopy(text, successMsg) {
+  // Works on file://, HTTP, older browsers
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    const ok = document.execCommand('copy');
+    showToast(ok ? successMsg : '[ COPY FAILED — SELECT MANUALLY ]');
+  } catch(e) {
+    showToast('[ COPY FAILED — SELECT MANUALLY ]');
+  }
+  document.body.removeChild(ta);
+}
+
+function copyAll() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let items = DATA;
+  if (activeTab !== 'All') items = items.filter(d => d.cat === activeTab);
+  if (q) items = items.filter(d =>
+    d.label.toLowerCase().includes(q) || d.cmd.toLowerCase().includes(q) ||
+    (d.note && d.note.toLowerCase().includes(q)) || d.group.toLowerCase().includes(q)
+  );
+  const text = items.map(d => `# ${d.label}\n${d.cmd}`).join('\n\n');
+  copyToClipboard(text, `[ ${items.length} COMMANDS COPIED ]`);
+}
+
+function clearSearch() {
+  document.getElementById('search').value = '';
+  render();
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Store commands by index so onclick never has to pass raw strings
+const CMD_MAP = {};
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let items = DATA;
+  if (activeTab !== 'All') items = items.filter(d => d.cat === activeTab);
+  if (q) items = items.filter(d =>
+    d.label.toLowerCase().includes(q) || d.cmd.toLowerCase().includes(q) ||
+    (d.note && d.note.toLowerCase().includes(q)) || d.group.toLowerCase().includes(q)
+  );
+
+  document.getElementById('stat-count').textContent = items.length;
+  document.getElementById('stat-cat').textContent = activeTab.toUpperCase();
+
+  const groups = {};
+  items.forEach(d => {
+    const key = (activeTab === 'All' ? d.cat + '  ▸  ' : '') + d.group;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(d);
+  });
+
+  let html = '';
+  if (items.length === 0) {
+    html = '<div class="empty">[ NO COMMANDS MATCH YOUR QUERY ]<br><span style="font-size:0.7rem;color:var(--text-dim)">try a different search term</span></div>';
+  } else {
+    let idx = 0;
+    Object.entries(groups).forEach(([grp, cmds]) => {
+      html += `<div class="section-label">// ${esc(grp)}</div>`;
+      cmds.forEach((d) => {
+        const key = 'cmd_' + idx;
+        CMD_MAP[key] = d.cmd;
+        html += `<div class="cmd-card">
+          <div class="cmd-left">
+            <div class="cmd-label">
+              <span style="color:var(--text-dim)">&gt;&gt;</span>
+              ${esc(d.label)}
+              <span class="cat-pill ${CAT_CLASS[d.cat]}">${esc(d.cat)}</span>
+            </div>
+            <div class="cmd-code">${esc(d.cmd)}</div>
+            ${d.note ? `<div class="cmd-note">${esc(d.note)}</div>` : ''}
+          </div>
+          <button class="copy-btn" data-key="${key}">[COPY]</button>
+        </div>`;
+        idx++;
+      });
+    });
+  }
+  document.getElementById('output').innerHTML = html;
+}
+
+// Single delegated listener on the output container — no inline onclick
+document.getElementById('output').addEventListener('click', function(e) {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const text = CMD_MAP[btn.dataset.key];
+  if (!text) return;
+  copyToClipboard(text, '[ COPIED TO CLIPBOARD ]');
+  btn.textContent = '[COPIED]';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '[COPY]'; btn.classList.remove('copied'); }, 1800);
+});
+
+function buildTabs() {
+  const row = document.getElementById('tabs');
+  CATS.forEach(cat => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (cat === activeTab ? ' active' : '');
+    b.textContent = cat;
+    b.onclick = () => {
+      activeTab = cat;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      b.classList.add('active');
+      render();
+    };
+    row.appendChild(b);
+  });
+}
+
+buildTabs();
+render();
+</script>
+</body>
+</html>
